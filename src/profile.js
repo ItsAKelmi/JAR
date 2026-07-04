@@ -23,16 +23,31 @@ const PROFILE_URL = 'https://janitorai.com/hampter/profiles/mine';
 // A self-owned proxy preset the tool injects for the duration of a run. The URL is
 // intentionally unreachable: we capture the `/generateAlpha` RESPONSE (the assembled
 // prompt) BEFORE the client ever POSTs to the proxy, so the proxy never needs to
-// answer. Fixed id/name so a crashed run doesn't leave duplicates behind.
+// answer. Fixed id so a crashed run doesn't leave duplicates behind.
 const DUMMY_ID = 'a1b2c3d4-0000-4000-8000-000000000001';
-const DUMMY_PRESET = {
-  apiKey: 'x',
-  apiUrl: 'http://127.0.0.1:9/v1/chat/completions',
-  id: DUMMY_ID,
-  jailbreakPrompt: '',
-  model: 'gpt-4o',
-  name: 'janitor-lorebook-extractor (auto)',
-};
+
+/**
+ * Build the throwaway proxy preset with a RANDOM name and port (always above
+ * 8000). The id stays fixed (see {@link DUMMY_ID}) so dedup / crash-cleanup
+ * still works, but the name/port are randomised each run so the injected preset
+ * isn't fingerprintable by a constant string or port.
+ */
+function buildDummyPreset() {
+  const port = 8001 + Math.floor(Math.random() * 57000); // 8001..65000
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let name = '';
+  for (let i = 0; i < 12; i += 1) {
+    name += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return {
+    apiKey: 'x',
+    apiUrl: `http://127.0.0.1:${port}/v1/chat/completions`,
+    id: DUMMY_ID,
+    jailbreakPrompt: '',
+    model: 'gpt-4o',
+    name,
+  };
+}
 
 async function getProfile(page) {
   const r = await authedFetch(page, PROFILE_URL);
@@ -67,16 +82,18 @@ async function enterExtractionMode(page) {
 
   const next = JSON.parse(JSON.stringify(original));
 
+  const dummyPreset = buildDummyPreset();
   next.proxyConfigurations = Array.isArray(next.proxyConfigurations)
     ? next.proxyConfigurations.slice() : [];
-  if (!next.proxyConfigurations.some((p) => p && p.id === DUMMY_ID)) {
-    next.proxyConfigurations.push({ ...DUMMY_PRESET });
-  }
+  // Drop any stale copy from a crashed run, then add a freshly-randomised one
+  // (so the random name/port actually take effect each run).
+  next.proxyConfigurations = next.proxyConfigurations.filter((p) => !(p && p.id === DUMMY_ID));
+  next.proxyConfigurations.push(dummyPreset);
   next.selectedProxyConfigId = DUMMY_ID;
   next.api = 'openai';
   next.open_ai_mode = 'proxy';
-  next.open_ai_reverse_proxy = DUMMY_PRESET.apiUrl;
-  next.openAiModel = DUMMY_PRESET.model;
+  next.open_ai_reverse_proxy = dummyPreset.apiUrl;
+  next.openAiModel = dummyPreset.model;
 
   next.generation_settings = Object.assign({}, next.generation_settings, {
     context_length: 0,

@@ -963,6 +963,7 @@ async function openSettings() {
   $('setBaseUrl').value = s.baseUrl || '';
   $('setApiKey').value = s.apiKey || '';
   $('setModel').value = s.model || '';
+  $('setDontHideWindow').checked = !!s.dontHideBrowserWindow;
   $('settingsDialog').showModal();
 }
 async function saveSettings(e) {
@@ -974,6 +975,7 @@ async function saveSettings(e) {
       baseUrl: $('setBaseUrl').value.trim(),
       apiKey: $('setApiKey').value.trim(),
       model: $('setModel').value.trim(),
+      dontHideBrowserWindow: $('setDontHideWindow').checked,
     }),
   });
   $('settingsDialog').close();

@@ -177,9 +177,76 @@ async function sendMessage(page, text, opts = {}) {
 
   if (opts.sendSelector) {
     await page.locator(opts.sendSelector).first().click();
-  } else {
+    return;
+  }
+  // A previous send may still be streaming / hanging against the unreachable
+  // dummy proxy, which keeps the composer disabled so the next message can't go
+  // out. Abort it first (we already captured the generateAlpha payload, which
+  // fires BEFORE the proxy POST), then click the send button. JanitorAI's
+  // composer no longer submits on a bare Enter in every layout (text just sits
+  // unsent), so Enter is only a last resort.
+  await abortGeneration(page);
+  const clicked = await clickSendButton(page, loc);
+  if (!clicked) {
     await loc.press('Enter');
   }
+}
+
+/**
+ * Abort an in-progress generation by clicking the composer's stop/cancel button,
+ * so the send button re-enables. No-op when nothing is generating.
+ * @param {import('playwright').Page} page
+ */
+async function abortGeneration(page, { timeout = 15000 } = {}) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const stop = page.locator(
+      'button[aria-label*="stop" i], button[aria-label*="cancel" i]').first();
+    if ((await stop.count()) === 0) return;
+    if (!(await stop.isVisible().catch(() => false))) return;
+    await stop.click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
+
+/**
+ * Click the composer's send button relative to the chat input. The button
+ * enables a few frames after the value changes (and only once the composer is
+ * idle), so poll for it. Matches `<button aria-label="Send" class="_sendButton_…">`
+ * (not a submit, not inside a <form>), excluding any stop/cancel control, then
+ * falls back to the last live button in the container holding the input. Returns
+ * true if a button was clicked.
+ * @param {import('playwright').Page} page
+ * @param {import('playwright').Locator} loc  the chat input locator
+ */
+async function clickSendButton(page, loc) {
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const clicked = await loc.evaluate((el) => {
+      const isSend = (b) => {
+        if (!b || b.offsetParent === null || b.disabled) return false;
+        const label = (b.getAttribute('aria-label') || '').toLowerCase();
+        return label.indexOf('stop') < 0 && label.indexOf('cancel') < 0;
+      };
+      const cands = document.querySelectorAll(
+        'button[aria-label*="send" i], '
+        + 'button[class*="sendButton" i], '
+        + 'button[type="submit"]');
+      for (let i = 0; i < cands.length; i += 1) {
+        if (isSend(cands[i])) { cands[i].click(); return true; }
+      }
+      const scope = el.closest('form') || el.parentElement;
+      if (scope) {
+        const btns = Array.prototype.slice
+          .call(scope.querySelectorAll('button')).filter(isSend);
+        if (btns.length) { btns[btns.length - 1].click(); return true; }
+      }
+      return false;
+    }).catch(() => false);
+    if (clicked) return true;
+    await page.waitForTimeout(250);
+  }
+  return false;
 }
 
 /**

@@ -32,6 +32,7 @@ function loadSettings() {
     baseUrl: '',
     apiKey: '',
     model: '',
+    dontHideBrowserWindow: false,
   };
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
@@ -83,8 +84,11 @@ function resolveWaiters(stored) {
 // The browser is NOT launched at boot, and never kept warm. It opens only for a
 // login (visible window) or an extraction (real window pushed off-screen) and
 // closes right after. Both are headful so Cloudflare clears. Extraction runs in
-// the background by default; set EXTRACTION_BACKGROUND=false to watch it on-screen.
-const extractionMode = 'background';
+// the background by default; toggle "don't hide browser window" in settings to
+// watch it on-screen instead.
+function getExtractionMode() {
+  return loadSettings().dontHideBrowserWindow ? 'visible' : 'background';
+}
 const browser = new BrowserManager({
   userDataDir: './user-data',
   onCapture: (rec) => {
@@ -492,7 +496,7 @@ app.post('/api/inspect', async (req, res) => {
       const avatarBase64 = avatarUrl ? await downloadAvatar(page, avatarUrl) : '';
 
       return { meta, ctxParts, publicLorebooks, avatarBase64 };
-    }, { mode: extractionMode });
+    }, { mode: getExtractionMode() });
 
     const cardPublic = isCardPublic(out.meta);
     const character = cardPublic
@@ -644,7 +648,7 @@ app.post('/api/capture', async (req, res) => {
             .catch((e) => console.warn('[profile] restore failed:', e.message));
         }
       }
-    }, { mode: extractionMode });
+    }, { mode: getExtractionMode() });
 
     res.json({ id: rec.id, lorebookText: built.lorebookText, character: built.character });
   } catch (e) {
@@ -669,7 +673,7 @@ app.post('/api/public-lorebooks', async (req, res) => {
       const meta = await fetchCharacter(page, characterId).catch(() => null);
       if (!meta) throw new Error('could not read character metadata');
       return fetchPublicLorebooks(page, meta);
-    }, { mode: extractionMode });
+    }, { mode: getExtractionMode() });
     res.json({ publicLorebooks: books });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
@@ -780,6 +784,7 @@ app.post('/api/settings', (req, res) => {
     baseUrl: req.body.baseUrl ?? cur.baseUrl,
     apiKey: req.body.apiKey ?? cur.apiKey,
     model: req.body.model ?? cur.model,
+    dontHideBrowserWindow: req.body.dontHideBrowserWindow ?? cur.dontHideBrowserWindow,
   };
   saveSettings(next);
   res.json(next);
