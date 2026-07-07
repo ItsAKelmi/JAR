@@ -80,4 +80,14 @@ After extraction you can:
 
 If the character uses a generic lorebook (e.g. a universe or shared lorebook), this method may not trigger all entries automatically. The only way to pull them is to manually type the trigger keys during entry collection. Those keys can then be sent to the LLM during the build for additional context.
 
+## Saucepan (native extraction)
+
+JAR can also extract characters from [saucepan.ai](https://saucepan.ai) — no browser or Cloudflare workaround needed. Saucepan serves companion definitions through an authenticated API, so extraction is a direct, exact pull (not a reconstruction).
+
+1. **Log in** — open **⚙ Settings → Saucepan** and sign in with your Saucepan handle and password (or paste a Bearer token). The token is stored locally in `settings.local.json`; your password is never stored. A Saucepan session alone is enough to use the app — a JanitorAI login is not required.
+2. **Extract** — paste a `saucepan.ai/companion/…` URL into the sidebar and click **extract**. The full card is pulled directly: description, first message and alternate greetings, example dialogue, tags, and avatar.
+3. **Download** — save the card as PNG or JSON from the *character card* tab, exactly like a JanitorAI character.
+
+Saucepan ships companion definitions as a shuffled list of text fragments padded with decoys (a naive read is scrambled). JAR validates each fragment against its proof hash, drops the decoys, and reassembles the survivors in order — mirroring Saucepan's own client — so the recovered text is exact. Greetings live on a separate endpoint and are reassembled the same way.
+
 License: AGPL-3.0

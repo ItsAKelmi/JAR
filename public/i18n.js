@@ -125,6 +125,23 @@ const I18N = {
     howLi1: 'download the extracted lorebook content as a plain .txt file (no keys or rules).',
     howLi2: 'send the entries to a chosen model (along with the character card and description for context) and have it build a proper lorebook for you.',
     howUniverse: 'if the target character uses a generic lorebook (e.g. a universe lorebook or a sex-positions lorebook), this method may not trigger all entries automatically. the only way to pull them is to manually type the keys during entry collection. those keys can then be sent during the LLM build for additional context.',
+
+    // Saucepan (native extraction)
+    extractDone: 'extracted',
+    saucepanReady: 'saucepan ready',
+    saucepanNeedLogin: 'log in to saucepan first (settings)',
+    saucepanTitle: 'Saucepan (native extraction)',
+    saucepanHint: 'optional — extract characters from a saucepan.ai companion URL. no browser needed; sign in once and the token is stored locally.',
+    saucepanHandle: 'handle',
+    saucepanHandlePh: 'saucepan handle',
+    saucepanPassword: 'password',
+    saucepanPasswordPh: 'password (not stored)',
+    saucepanLoginBtn: 'log in to saucepan',
+    saucepanLogoutBtn: 'clear token',
+    saucepanLoggingIn: 'logging in…',
+    saucepanLoggedIn: 'logged in',
+    saucepanNotLoggedIn: 'not logged in',
+    saucepanNeedCreds: 'enter handle and password',
   },
 
   ru: {
@@ -246,6 +263,23 @@ const I18N = {
     howLi1: 'скачать извлечённое содержимое лорбука в .txt (без ключей и правил).',
     howLi2: 'отправить эти записи выбранной модели (вместе с карточкой персонажа и её описанием для контекста) и попросить её собрать лорбук вместо вас.',
     howUniverse: 'если целевой персонаж использует какой-то общий лорбук (например, лорбук вселенной или лорбук для поз в сексе), то этот метод может не вызвать все записи автоматически. единственный способ их вытащить — самостоятельно вписать ключи при сборе записей. эти ключи потом могут быть отправлены при сборке с помощью LLM для дополнительного контекста.',
+
+    // Saucepan (нативная экстракция)
+    extractDone: 'извлечено',
+    saucepanReady: 'saucepan готов',
+    saucepanNeedLogin: 'сначала войдите в saucepan (настройки)',
+    saucepanTitle: 'Saucepan (нативная экстракция)',
+    saucepanHint: 'опционально — извлечение персонажей по ссылке saucepan.ai. браузер не нужен; войдите один раз, и токен сохранится локально.',
+    saucepanHandle: 'логин',
+    saucepanHandlePh: 'логин saucepan',
+    saucepanPassword: 'пароль',
+    saucepanPasswordPh: 'пароль (не сохраняется)',
+    saucepanLoginBtn: 'войти в saucepan',
+    saucepanLogoutBtn: 'очистить токен',
+    saucepanLoggingIn: 'вход…',
+    saucepanLoggedIn: 'вы вошли',
+    saucepanNotLoggedIn: 'не авторизован',
+    saucepanNeedCreds: 'введите логин и пароль',
   },
 };
 
