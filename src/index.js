@@ -898,7 +898,9 @@ function openInDefaultBrowser(url) {
   } catch (_) { /* non-fatal: the URL is printed below anyway */ }
 }
 
-app.listen(PORT, () => {
+// Bind to loopback only: the server handles Saucepan credentials/token and has
+// no auth, so it must never be reachable from the LAN.
+app.listen(PORT, '127.0.0.1', () => {
   const url = `http://localhost:${PORT}`;
   console.log(`[JAR]  ${url}`);
   console.log('[JAR]  browser opens only for login (visible) / extraction (off-screen), closes after.');
