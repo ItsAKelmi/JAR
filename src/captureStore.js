@@ -53,7 +53,7 @@ function saveInspection(record) {
     id,
     ts: Date.now(),
     url: record.url || '',
-    source: 'inspect',
+    source: record.source || 'inspect',
     characterId: record.characterId || '',
     characterName: record.characterName || '',
     meta: record.meta || null,

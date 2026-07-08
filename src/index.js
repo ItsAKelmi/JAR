@@ -22,6 +22,7 @@ const { fetchPublicLorebooks, publicEntryContents } = require('./publiclore');
 const { enterExtractionMode, restoreProfile } = require('./profile');
 const { ensureUserMacroPersona, deletePersona } = require('./personas');
 const { countTokens } = require('./tokenizer');
+const saucepan = require('./saucepan');
 
 const PORT = Number(process.env.PORT) || 4577;
 const SETTINGS_FILE = path.join(__dirname, '..', 'settings.local.json');
@@ -33,6 +34,7 @@ function loadSettings() {
     apiKey: '',
     model: '',
     dontHideBrowserWindow: false,
+    saucepanToken: '',
   };
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
@@ -44,6 +46,9 @@ function loadSettings() {
 function saveSettings(s) {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2), 'utf8');
 }
+
+// Restore a persisted Saucepan bearer token into the module on boot.
+saucepan.setToken(loadSettings().saucepanToken || '');
 
 // ---- live capture notifications (SSE) ----
 const sseClients = new Set();
@@ -777,17 +782,88 @@ app.post('/api/save-character', (req, res) => {
   }
 });
 
-app.get('/api/settings', (req, res) => res.json(loadSettings()));
+app.get('/api/settings', (req, res) => {
+  // Never expose the Saucepan bearer token to the client — status is reported
+  // via /api/saucepan/status instead.
+  const { saucepanToken, ...safe } = loadSettings();
+  res.json(safe);
+});
 app.post('/api/settings', (req, res) => {
   const cur = loadSettings();
+  // Spread `cur` first so unrelated persisted fields (e.g. saucepanToken) survive.
   const next = {
+    ...cur,
     baseUrl: req.body.baseUrl ?? cur.baseUrl,
     apiKey: req.body.apiKey ?? cur.apiKey,
     model: req.body.model ?? cur.model,
     dontHideBrowserWindow: req.body.dontHideBrowserWindow ?? cur.dontHideBrowserWindow,
   };
   saveSettings(next);
-  res.json(next);
+  const { saucepanToken, ...safe } = next;
+  res.json(safe);
+});
+
+// ---- Saucepan (saucepan.ai) native extraction -----------------------------
+// A separate source from JanitorAI: no browser needed. The companion definition
+// comes straight from Saucepan's authed REST API and is reassembled from its
+// obfuscated fragments (see src/saucepan.js). A bearer token is required —
+// obtained via handle/password login or pasted directly — and persisted locally.
+
+function persistSaucepanToken(tok) {
+  saucepan.setToken(tok);
+  saveSettings({ ...loadSettings(), saucepanToken: saucepan.getToken() });
+}
+
+app.get('/api/saucepan/status', (_req, res) => {
+  res.json({ loggedIn: saucepan.hasToken() });
+});
+
+app.post('/api/saucepan/login', async (req, res) => {
+  try {
+    const { handle, password } = req.body || {};
+    if (!handle || !password) return res.status(400).json({ error: 'handle and password are required' });
+    const tok = await saucepan.login(handle, password);
+    persistSaucepanToken(tok);
+    res.json({ ok: true, loggedIn: true });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+app.post('/api/saucepan/set-token', (req, res) => {
+  const tok = String((req.body && req.body.token) || '').trim();
+  if (!tok) return res.status(400).json({ error: 'token is required' });
+  persistSaucepanToken(tok);
+  res.json({ ok: true, loggedIn: true });
+});
+
+app.post('/api/saucepan/logout', (_req, res) => {
+  persistSaucepanToken('');
+  res.json({ ok: true, loggedIn: false });
+});
+
+// Extract a Saucepan companion by URL and save it as an inspection record so it
+// shows in the sidebar and populates the character-card form (same shape as
+// /api/inspect). The card is complete — no follow-up capture needed.
+app.post('/api/saucepan/extract', async (req, res) => {
+  try {
+    const url = String((req.body && req.body.url) || '').trim();
+    if (!url) return res.status(400).json({ error: 'url is required' });
+    const { companionId, character } = await saucepan.extractCompanion(url);
+    const rec = store.saveInspection({
+      url,
+      characterId: companionId,
+      characterName: character.name,
+      character,
+      avatarBase64: character.avatarBase64 || '',
+      cardPublic: true,
+      source: 'saucepan',
+    });
+    broadcast('capture', { id: rec.id });
+    res.json({ id: rec.id, characterName: rec.characterName, character });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: String(e.message || e) });
+  }
 });
 
 app.get('/api/events', (req, res) => {

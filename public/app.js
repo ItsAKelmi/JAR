@@ -229,7 +229,9 @@ async function selectCapture(id) {
 
   const charEl = $('metaChar');
   if (rec.characterId) {
-    const charUrl = `https://janitorai.com/characters/${rec.characterId}`;
+    const charUrl = rec.source === 'saucepan'
+      ? (rec.url || `https://saucepan.ai/companion/${rec.characterId}`)
+      : `https://janitorai.com/characters/${rec.characterId}`;
     charEl.innerHTML = `${t('charLabel')}: <a href="${escapeHtml(charUrl)}" target="_blank" rel="noopener">${escapeHtml(rec.characterName || rec.characterId)}</a>`;
   } else {
     charEl.textContent = rec.characterName || '(unknown)';
@@ -832,11 +834,25 @@ function download() {
 // "extract" button → INSPECT only: read the character's name, avatar, card
 // visibility and lorebooks. Nothing public triggers a generateAlpha run; the
 // private card / closed lorebooks are extracted later, on demand.
+function isSaucepanUrl(url) {
+  return /saucepan\.ai\/companion\//i.test(url);
+}
+
 async function runFromUrl() {
   const url = $('charUrl').value.trim();
   if (!url) { $('autoStatus').textContent = t('pasteFirst'); return; }
+
+  // Saucepan URLs take a different path: a token-authed API extract, no browser.
+  const saucepan = isSaucepanUrl(url);
+  if (saucepan && !state.saucepanReady) {
+    setStatus($('autoStatus'), 'warn', t('saucepanNeedLogin'));
+    openSettings();
+    return;
+  }
+  const busyLabel = saucepan ? t('extracting') : t('inspecting');
+
   $('runBtn').disabled = true;
-  $('autoStatus').textContent = t('inspecting');
+  $('autoStatus').textContent = busyLabel;
 
   // Add a pending entry to the sidebar immediately
   const pendingId = '_pending_' + Date.now();
@@ -847,7 +863,7 @@ async function runFromUrl() {
   li.classList.add('active');
   li.innerHTML = `
     <div class="li-top">
-      <span class="li-char extracting">${t('inspecting')}</span>
+      <span class="li-char extracting">${busyLabel}</span>
       <span class="li-time">${fmtTime(Date.now())}</span>
     </div>
     <div class="li-preview">${escapeHtml(url)}</div>`;
@@ -855,13 +871,13 @@ async function runFromUrl() {
   document.querySelectorAll('#captureList li').forEach((el) =>
     el.classList.toggle('active', el.dataset.id === pendingId));
 
-  // Show inspecting state in the detail panel
+  // Show working state in the detail panel
   $('detailBody').classList.add('hidden');
   $('detailEmpty').classList.remove('hidden');
-  $('detailEmpty').innerHTML = `<span class="extracting">${t('inspecting')}</span>`;
+  $('detailEmpty').innerHTML = `<span class="extracting">${busyLabel}</span>`;
 
   try {
-    const r = await api('/api/inspect', {
+    const r = await api(saucepan ? '/api/saucepan/extract' : '/api/inspect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -870,7 +886,7 @@ async function runFromUrl() {
     li.remove();
     await loadList();
     await selectCapture(r.id);
-    $('autoStatus').textContent = t('inspectDone');
+    $('autoStatus').textContent = saucepan ? t('extractDone') : t('inspectDone');
   } catch (e) {
     li.remove();
     await loadList();
@@ -957,6 +973,13 @@ async function deleteCapture() {
 }
 
 // ---- settings ----
+function renderSaucepanStatus() {
+  const el = $('saucepanStatus');
+  if (!el) return;
+  if (state.saucepanReady) setStatus(el, 'check', t('saucepanLoggedIn'));
+  else el.textContent = t('saucepanNotLoggedIn');
+}
+
 async function openSettings() {
   const s = await api('/api/settings');
   $('setLang').value = currentLang;
@@ -964,7 +987,40 @@ async function openSettings() {
   $('setApiKey').value = s.apiKey || '';
   $('setModel').value = s.model || '';
   $('setDontHideWindow').checked = !!s.dontHideBrowserWindow;
+  renderSaucepanStatus();
   $('settingsDialog').showModal();
+}
+
+// Log in to Saucepan from the settings dialog (handle + password → stored token).
+async function saucepanLogin() {
+  const handle = $('setSaucepanHandle').value.trim();
+  const password = $('setSaucepanPassword').value;
+  if (!handle || !password) { setStatus($('saucepanStatus'), 'warn', t('saucepanNeedCreds')); return; }
+  $('saucepanLoginBtn').disabled = true;
+  setStatus($('saucepanStatus'), 'unlock', t('saucepanLoggingIn'));
+  try {
+    const r = await api('/api/saucepan/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle, password }),
+    });
+    state.saucepanReady = !!r.loggedIn;
+    $('setSaucepanPassword').value = '';
+    renderSaucepanStatus();
+    unlockUI();
+  } catch (e) {
+    setStatus($('saucepanStatus'), 'x', e.message);
+  } finally {
+    $('saucepanLoginBtn').disabled = false;
+  }
+}
+
+async function saucepanLogout() {
+  try {
+    await api('/api/saucepan/logout', { method: 'POST' });
+  } catch (_) { /* clear locally regardless */ }
+  state.saucepanReady = false;
+  renderSaucepanStatus();
 }
 async function saveSettings(e) {
   e.preventDefault();
@@ -990,17 +1046,20 @@ function unlockUI() {
 
 async function checkStatus() {
   $('loginStatus').textContent = t('checkingSession');
-  try {
-    const data = await api('/api/status');
-    if (data.loggedIn) {
-      setStatus($('loginStatus'), 'check', t('loggedIn'));
-      unlockUI();
-    } else {
-      $('loginStatus').textContent = t('notLoggedIn');
-    }
-  } catch (_) {
-    $('loginStatus').textContent = '';
+  // Either source unlocks the UI: JanitorAI (browser session) or Saucepan (token).
+  const [jan, sauce] = await Promise.all([
+    api('/api/status').catch(() => ({ loggedIn: false })),
+    api('/api/saucepan/status').catch(() => ({ loggedIn: false })),
+  ]);
+  state.saucepanReady = !!sauce.loggedIn;
+  if (jan.loggedIn) {
+    setStatus($('loginStatus'), 'check', t('loggedIn'));
+  } else if (sauce.loggedIn) {
+    setStatus($('loginStatus'), 'check', t('saucepanReady'));
+  } else {
+    $('loginStatus').textContent = t('notLoggedIn');
   }
+  if (jan.loggedIn || sauce.loggedIn) unlockUI();
 }
 
 // ---- JanitorAI login ----
@@ -1053,6 +1112,8 @@ $('downloadBtn').addEventListener('click', download);
 $('deleteBtn').addEventListener('click', deleteCapture);
 $('settingsBtn').addEventListener('click', openSettings);
 $('saveSettings').addEventListener('click', saveSettings);
+$('saucepanLoginBtn').addEventListener('click', saucepanLogin);
+$('saucepanLogoutBtn').addEventListener('click', saucepanLogout);
 // Manual language switch — applies immediately and persists across sessions.
 $('setLang').addEventListener('change', () => setLang($('setLang').value, true));
 
