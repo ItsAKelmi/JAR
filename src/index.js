@@ -13,7 +13,7 @@ const {
 } = require('./separate');
 const { extract, buildExtractionMessages } = require('./extract');
 const {
-  BrowserManager, openLogin, requireLogin, getStatus, getAvatarUrl, downloadAvatar,
+  BrowserManager, openLogin, logout, requireLogin, getStatus, getAvatarUrl, downloadAvatar,
 } = require('./capture');
 const {
   sendMessage, parseCharacterId, createChat, deleteChat, fetchCharacter, authedFetch,
@@ -473,7 +473,7 @@ app.post('/api/inspect', async (req, res) => {
       const pages = ctx.pages();
       const page = pages.find((p) => p.url().includes('janitorai.com')) || pages[0]
         || (await ctx.newPage());
-      await page.goto(charUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.goto(charUrl, { waitUntil: 'domcontentloaded' }).catch(() => { });
 
       const meta = await fetchCharacter(page, characterId).catch(() => null);
       const ctxParts = buildContextParts(meta);
@@ -577,7 +577,7 @@ app.post('/api/capture', async (req, res) => {
       let chatId = null;
       try {
         await page.goto(rec.url || `https://janitorai.com/characters/${characterId}`,
-          { waitUntil: 'domcontentloaded' }).catch(() => {});
+          { waitUntil: 'domcontentloaded' }).catch(() => { });
 
         try {
           const persona = await ensureUserMacroPersona(page);
@@ -616,7 +616,7 @@ app.post('/api/capture', async (req, res) => {
         // run against the previous (e.g. JLLM) preset and lose its wrappers. Reload
         // the chat page once to force the new preset to take effect before the
         // auto-trigger fires generateAlpha.
-        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => { });
 
         const firstMessage = meta && meta.first_message ? String(meta.first_message) : '';
         // Attach the upcoming generateAlpha capture to THIS inspected record.
@@ -708,6 +708,17 @@ app.post('/api/login', async (req, res) => {
     const data = await browser.withBrowser((ctx) => openLogin(ctx),
       { mode: 'visible', keepOpen: true });
     if (data.loggedIn) await browser.dispose();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Sign out of JanitorAI: clear the persisted browser session, then close it.
+app.post('/api/logout', async (req, res) => {
+  try {
+    const data = await browser.withBrowser((ctx) => logout(ctx), { mode: 'background' });
+    await browser.dispose();
     res.json(data);
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
@@ -900,7 +911,7 @@ function openInDefaultBrowser(url) {
 
 // Bind to loopback only: the server handles Saucepan credentials/token and has
 // no auth, so it must never be reachable from the LAN.
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, () => {
   const url = `http://localhost:${PORT}`;
   console.log(`[JAR]  ${url}`);
   console.log('[JAR]  browser opens only for login (visible) / extraction (off-screen), closes after.');

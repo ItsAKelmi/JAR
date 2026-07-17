@@ -125,12 +125,23 @@ const I18N = {
     howLi1: 'download the extracted lorebook content as a plain .txt file (no keys or rules).',
     howLi2: 'send the entries to a chosen model (along with the character card and description for context) and have it build a proper lorebook for you.',
     howUniverse: 'if the target character uses a generic lorebook (e.g. a universe lorebook or a sex-positions lorebook), this method may not trigger all entries automatically. the only way to pull them is to manually type the keys during entry collection. those keys can then be sent during the LLM build for additional context.',
+    howSaucepanTitle: 'Saucepan (native extraction)',
+    howSaucepanText: 'JAR gets the character data straight from Saucepan servers using your account. Open characters for now, no lorebooks.',
+
+    // Login window
+    loginTitle: 'log in',
+    janitorTitle: 'JanitorAI',
+    janitorHint: 'sign in through a browser window. a JanitorAI session lets you extract private cards and closed lorebooks.',
+    janitorLoginBtn: 'log in to janitorai',
+    janitorLogoutBtn: 'log out',
+    loggingOut: 'logging out…',
+    closeBtn: 'close',
 
     // Saucepan (native extraction)
     extractDone: 'extracted',
     saucepanReady: 'saucepan ready',
-    saucepanNeedLogin: 'log in to saucepan first (settings)',
-    saucepanTitle: 'Saucepan (native extraction)',
+    saucepanNeedLogin: 'log in to saucepan first (login window)',
+    saucepanTitle: 'Saucepan',
     saucepanHint: 'optional — extract characters from a saucepan.ai companion URL. no browser needed; sign in once and the token is stored locally.',
     saucepanHandle: 'handle',
     saucepanHandlePh: 'saucepan handle',
@@ -263,12 +274,23 @@ const I18N = {
     howLi1: 'скачать извлечённое содержимое лорбука в .txt (без ключей и правил).',
     howLi2: 'отправить эти записи выбранной модели (вместе с карточкой персонажа и её описанием для контекста) и попросить её собрать лорбук вместо вас.',
     howUniverse: 'если целевой персонаж использует какой-то общий лорбук (например, лорбук вселенной или лорбук для поз в сексе), то этот метод может не вызвать все записи автоматически. единственный способ их вытащить — самостоятельно вписать ключи при сборе записей. эти ключи потом могут быть отправлены при сборке с помощью LLM для дополнительного контекста.',
+    howSaucepanTitle: 'Saucepan (нативная экстракция)',
+    howSaucepanText: 'JAR получает данные персонажа напрямую с серверов Saucepan, используя ваш аккаунт. Пока только открытые персонажи, без лорбуков.',
+
+    // Окно входа
+    loginTitle: 'вход',
+    janitorTitle: 'JanitorAI',
+    janitorHint: 'вход через окно браузера. сессия JanitorAI позволяет извлекать приватные карточки и закрытые лорбуки.',
+    janitorLoginBtn: 'войти в janitorai',
+    janitorLogoutBtn: 'выйти',
+    loggingOut: 'выход…',
+    closeBtn: 'закрыть',
 
     // Saucepan (нативная экстракция)
     extractDone: 'извлечено',
     saucepanReady: 'saucepan готов',
-    saucepanNeedLogin: 'сначала войдите в saucepan (настройки)',
-    saucepanTitle: 'Saucepan (нативная экстракция)',
+    saucepanNeedLogin: 'сначала войдите в saucepan (окно входа)',
+    saucepanTitle: 'Saucepan',
     saucepanHint: 'опционально — извлечение персонажей по ссылке saucepan.ai. браузер не нужен; войдите один раз, и токен сохранится локально.',
     saucepanHandle: 'логин',
     saucepanHandlePh: 'логин saucepan',
@@ -323,12 +345,23 @@ function applyI18n() {
       <ul><li>${d.howLi1}</li><li>${d.howLi2}</li></ul>
       <p>${d.howUniverse}</p>`;
   }
+  function renderHowSaucepan(lang) {
+    const d = I18N[lang];
+    return `<h2>${d.howSaucepanTitle}</h2>
+      <p>${d.howSaucepanText}</p>`;
+  }
   const howEN = document.getElementById('howEN');
   const howRU = document.getElementById('howRU');
   if (howEN) howEN.innerHTML = renderHow('en');
   if (howRU) howRU.innerHTML = renderHow('ru');
   if (howEN) howEN.classList.toggle('hidden', currentLang !== 'en');
   if (howRU) howRU.classList.toggle('hidden', currentLang !== 'ru');
+  const howSpEN = document.getElementById('howSpEN');
+  const howSpRU = document.getElementById('howSpRU');
+  if (howSpEN) howSpEN.innerHTML = renderHowSaucepan('en');
+  if (howSpRU) howSpRU.innerHTML = renderHowSaucepan('ru');
+  if (howSpEN) howSpEN.classList.toggle('hidden', currentLang !== 'en');
+  if (howSpRU) howSpRU.classList.toggle('hidden', currentLang !== 'ru');
 }
 
 function setLang(lang, persist) {

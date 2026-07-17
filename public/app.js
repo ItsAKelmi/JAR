@@ -972,7 +972,18 @@ async function deleteCapture() {
   await loadList();
 }
 
-// ---- settings ----
+// ---- login window ----
+function renderJanitorStatus() {
+  // The auth button doubles as log in / log out depending on session state.
+  const btn = $('janitorLoginBtn');
+  const span = btn && btn.querySelector('span');
+  if (span) span.textContent = state.janitorReady ? t('janitorLogoutBtn') : t('janitorLoginBtn');
+  const el = $('janitorStatus');
+  if (!el) return;
+  if (state.janitorReady) setStatus(el, 'check', t('loggedIn'));
+  else el.textContent = t('notLoggedIn');
+}
+
 function renderSaucepanStatus() {
   const el = $('saucepanStatus');
   if (!el) return;
@@ -980,6 +991,24 @@ function renderSaucepanStatus() {
   else el.textContent = t('saucepanNotLoggedIn');
 }
 
+// Header shows each source's session state separately (JanitorAI + Saucepan).
+function setHeaderChip(el, label, ready) {
+  if (!el) return;
+  if (ready) el.innerHTML = `${escapeHtml(label)}: ${iconSvg('check')} <span>${escapeHtml(t('loggedIn'))}</span>`;
+  else el.textContent = `${label}: ${t('notLoggedIn')}`;
+}
+function refreshHeaderStatus() {
+  setHeaderChip($('janitorHeaderStatus'), t('janitorTitle'), state.janitorReady);
+  setHeaderChip($('saucepanHeaderStatus'), t('saucepanTitle'), state.saucepanReady);
+}
+
+function openLoginDialog() {
+  renderJanitorStatus();
+  renderSaucepanStatus();
+  $('loginDialog').showModal();
+}
+
+// ---- settings ----
 async function openSettings() {
   const s = await api('/api/settings');
   $('setLang').value = currentLang;
@@ -987,11 +1016,10 @@ async function openSettings() {
   $('setApiKey').value = s.apiKey || '';
   $('setModel').value = s.model || '';
   $('setDontHideWindow').checked = !!s.dontHideBrowserWindow;
-  renderSaucepanStatus();
   $('settingsDialog').showModal();
 }
 
-// Log in to Saucepan from the settings dialog (handle + password → stored token).
+// Log in to Saucepan from the login window (handle + password → stored token).
 async function saucepanLogin() {
   const handle = $('setSaucepanHandle').value.trim();
   const password = $('setSaucepanPassword').value;
@@ -1007,6 +1035,7 @@ async function saucepanLogin() {
     state.saucepanReady = !!r.loggedIn;
     $('setSaucepanPassword').value = '';
     renderSaucepanStatus();
+    refreshHeaderStatus();
     unlockUI();
   } catch (e) {
     setStatus($('saucepanStatus'), 'x', e.message);
@@ -1021,6 +1050,7 @@ async function saucepanLogout() {
   } catch (_) { /* clear locally regardless */ }
   state.saucepanReady = false;
   renderSaucepanStatus();
+  refreshHeaderStatus();
 }
 async function saveSettings(e) {
   e.preventDefault();
@@ -1045,40 +1075,57 @@ function unlockUI() {
 }
 
 async function checkStatus() {
-  $('loginStatus').textContent = t('checkingSession');
+  $('janitorHeaderStatus').textContent = t('checkingSession');
+  $('saucepanHeaderStatus').textContent = '';
   // Either source unlocks the UI: JanitorAI (browser session) or Saucepan (token).
   const [jan, sauce] = await Promise.all([
     api('/api/status').catch(() => ({ loggedIn: false })),
     api('/api/saucepan/status').catch(() => ({ loggedIn: false })),
   ]);
+  state.janitorReady = !!jan.loggedIn;
   state.saucepanReady = !!sauce.loggedIn;
-  if (jan.loggedIn) {
-    setStatus($('loginStatus'), 'check', t('loggedIn'));
-  } else if (sauce.loggedIn) {
-    setStatus($('loginStatus'), 'check', t('saucepanReady'));
-  } else {
-    $('loginStatus').textContent = t('notLoggedIn');
-  }
-  if (jan.loggedIn || sauce.loggedIn) unlockUI();
+  refreshHeaderStatus();
+  if (state.janitorReady || state.saucepanReady) unlockUI();
 }
 
-// ---- JanitorAI login ----
+// ---- JanitorAI login (browser session; runs from the login window) ----
+// The one button in the JanitorAI category logs in when signed out, logs out
+// when signed in.
+function onJanitorAuth() {
+  if (state.janitorReady) janitorLogout();
+  else login();
+}
+
 async function login() {
-  $('loginBtn').disabled = true;
-  $('loginStatus').textContent = t('openingJanitor');
+  $('janitorLoginBtn').disabled = true;
+  setStatus($('janitorStatus'), 'unlock', t('openingJanitor'));
   try {
     const data = await api('/api/login', { method: 'POST' });
     if (data.loggedIn) {
-      setStatus($('loginStatus'), 'check', t('loggedIn'));
+      state.janitorReady = true;
+      renderJanitorStatus();
+      refreshHeaderStatus();
       unlockUI();
     } else {
-      $('loginStatus').textContent = t('notSignedIn');
+      setStatus($('janitorStatus'), 'x', t('notSignedIn'));
     }
   } catch (e) {
-    setStatus($('loginStatus'), 'x', e.message);
+    setStatus($('janitorStatus'), 'x', e.message);
   } finally {
-    $('loginBtn').disabled = false;
+    $('janitorLoginBtn').disabled = false;
   }
+}
+
+async function janitorLogout() {
+  $('janitorLoginBtn').disabled = true;
+  setStatus($('janitorStatus'), 'unlock', t('loggingOut'));
+  try {
+    await api('/api/logout', { method: 'POST' });
+  } catch (_) { /* clear locally regardless */ }
+  state.janitorReady = false;
+  renderJanitorStatus();
+  refreshHeaderStatus();
+  $('janitorLoginBtn').disabled = false;
 }
 
 // ---- live updates ----
@@ -1115,17 +1162,34 @@ $('saveSettings').addEventListener('click', saveSettings);
 $('saucepanLoginBtn').addEventListener('click', saucepanLogin);
 $('saucepanLogoutBtn').addEventListener('click', saucepanLogout);
 // Manual language switch — applies immediately and persists across sessions.
-$('setLang').addEventListener('change', () => setLang($('setLang').value, true));
+$('setLang').addEventListener('change', () => {
+  setLang($('setLang').value, true);
+  // Re-render dynamic (JS-set) labels the generic data-i18n pass doesn't cover.
+  refreshHeaderStatus();
+  renderJanitorStatus();
+  renderSaucepanStatus();
+});
 
-$('loginBtn').addEventListener('click', login);
+$('loginBtn').addEventListener('click', openLoginDialog);
+$('janitorLoginBtn').addEventListener('click', onJanitorAuth);
 $('howBtn').addEventListener('click', () => { $('howDialog').showModal(); $('howDialog').scrollTop = 0; });
 $('howClose').addEventListener('click', () => $('howDialog').close());
 $('dlPngBtn').addEventListener('click', downloadPng);
 $('dlJsonBtn').addEventListener('click', downloadJson);
 $('dlImgBtn').addEventListener('click', downloadImage);
 
-document.querySelectorAll('.tab').forEach((t) => {
+// Main detail tabs (character card / lorebook) — scoped so the how-dialog tabs
+// below don't get caught by the same handler.
+document.querySelectorAll('.tabs:not(.how-tabs) .tab').forEach((t) => {
   t.addEventListener('click', () => switchTab(t.dataset.tab));
+});
+
+// "How it works" dialog tabs (JanitorAI / Saucepan).
+document.querySelectorAll('.how-tabs .tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.how-tabs .tab').forEach((x) => x.classList.toggle('active', x === tab));
+    document.querySelectorAll('.how-tab-panel').forEach((p) => p.classList.toggle('active', p.id === tab.dataset.howtab));
+  });
 });
 
 checkStatus();

@@ -62,7 +62,8 @@
       <h1>JAR <span class="brand-sub">Janitor AI Ripper</span> <span id="appVersion" class="brand-version"></span></h1>
     </div>
     <div class="header-actions">
-      <span id="loginStatus" class="muted"></span>
+      <span id="janitorHeaderStatus" class="muted header-status"></span>
+      <span id="saucepanHeaderStatus" class="muted header-status"></span>
       <button id="loginBtn" class="ghost"><svg class="icon"><use href="#i-unlock"/></svg><span data-i18n="login">log in</span></button>
       <button id="howBtn" class="ghost"><svg class="icon"><use href="#i-help"/></svg><span data-i18n="howBtn">how it works</span></button>
       <button id="settingsBtn" class="ghost"><svg class="icon"><use href="#i-gear"/></svg><span data-i18n="settingsBtn">settings</span></button>
@@ -310,6 +311,41 @@
     </section>
   </main>
 
+  <dialog id="loginDialog">
+    <form method="dialog">
+      <h2 data-i18n="loginTitle">log in</h2>
+
+      <!-- Category: JanitorAI (browser session) -->
+      <section class="login-cat">
+        <h3 data-i18n="janitorTitle">JanitorAI</h3>
+        <p class="muted" data-i18n="janitorHint">sign in through a browser window. a JanitorAI session lets you extract private cards and closed lorebooks.</p>
+        <span id="janitorStatus" class="muted"></span>
+        <div class="row">
+          <button type="button" id="janitorLoginBtn" class="ghost small"><svg class="icon"><use href="#i-unlock"/></svg><span data-i18n="janitorLoginBtn">log in to janitorai</span></button>
+        </div>
+      </section>
+
+      <!-- Category: Saucepan (native extraction, token) -->
+      <section class="login-cat">
+        <h3 data-i18n="saucepanTitle">Saucepan (native extraction)</h3>
+        <p class="muted" data-i18n="saucepanHint">optional — extract characters from a saucepan.ai companion URL. no browser needed; sign in once and the token is stored locally.</p>
+        <span id="saucepanStatus" class="muted"></span>
+        <label data-i18n="saucepanHandle">handle</label>
+        <input id="setSaucepanHandle" type="text" data-i18n-ph="saucepanHandlePh" placeholder="saucepan handle" autocomplete="off" />
+        <label data-i18n="saucepanPassword">password</label>
+        <input id="setSaucepanPassword" type="password" data-i18n-ph="saucepanPasswordPh" placeholder="password (not stored)" autocomplete="off" />
+        <div class="row">
+          <button type="button" id="saucepanLoginBtn" class="ghost small"><svg class="icon"><use href="#i-unlock"/></svg><span data-i18n="saucepanLoginBtn">log in to saucepan</span></button>
+          <button type="button" id="saucepanLogoutBtn" class="ghost small" data-i18n="saucepanLogoutBtn">clear token</button>
+        </div>
+      </section>
+
+      <div class="row end">
+        <button value="cancel" class="primary" data-i18n="closeBtn">close</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="settingsDialog">
     <form method="dialog">
       <label data-i18n="lblLanguage">language</label>
@@ -329,18 +365,6 @@
         <span data-i18n="dontHideWindowToggle">don't hide browser window while extracting</span>
       </label>
 
-      <h2 data-i18n="saucepanTitle">Saucepan (native extraction)</h2>
-      <p class="muted" data-i18n="saucepanHint">optional — extract characters from a saucepan.ai companion URL. no browser needed; sign in once and the token is stored locally.</p>
-      <span id="saucepanStatus" class="muted"></span>
-      <label data-i18n="saucepanHandle">handle</label>
-      <input id="setSaucepanHandle" type="text" data-i18n-ph="saucepanHandlePh" placeholder="saucepan handle" autocomplete="off" />
-      <label data-i18n="saucepanPassword">password</label>
-      <input id="setSaucepanPassword" type="password" data-i18n-ph="saucepanPasswordPh" placeholder="password (not stored)" autocomplete="off" />
-      <div class="row">
-        <button type="button" id="saucepanLoginBtn" class="ghost small"><svg class="icon"><use href="#i-unlock"/></svg><span data-i18n="saucepanLoginBtn">log in to saucepan</span></button>
-        <button type="button" id="saucepanLogoutBtn" class="ghost small" data-i18n="saucepanLogoutBtn">clear token</button>
-      </div>
-
       <div class="row end">
         <button value="cancel" class="ghost" data-i18n="cancelBtn">cancel</button>
         <button id="saveSettings" value="default" class="primary" data-i18n="saveBtn">save</button>
@@ -350,8 +374,20 @@
 
   <dialog id="howDialog">
     <div class="how-content">
-      <div id="howEN" class="how-body"></div>
-      <div id="howRU" class="how-body hidden"></div>
+      <div class="tabs how-tabs">
+        <button class="tab active" data-howtab="howJanitor" data-i18n="janitorTitle">JanitorAI</button>
+        <button class="tab" data-howtab="howSaucepan" data-i18n="saucepanTitle">Saucepan</button>
+      </div>
+
+      <div id="howJanitor" class="how-tab-panel active">
+        <div id="howEN" class="how-body"></div>
+        <div id="howRU" class="how-body hidden"></div>
+      </div>
+
+      <div id="howSaucepan" class="how-tab-panel">
+        <div id="howSpEN" class="how-body"></div>
+        <div id="howSpRU" class="how-body hidden"></div>
+      </div>
 
       <p class="muted" style="margin-top:16px;text-align:right">CGFY.</p>
 

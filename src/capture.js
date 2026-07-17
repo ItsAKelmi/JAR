@@ -44,6 +44,27 @@ async function openLogin(context, waitMs = 180000) {
   return { ready: true, loggedIn: false };
 }
 
+/**
+ * Sign out of JanitorAI: clear cookies + site storage from the persistent
+ * profile so the next status check reads as logged-out. Best-effort — the
+ * persistent context writes the cleared state back to user-data/ on close.
+ */
+async function logout(context) {
+  if (!context) return { ready: true, loggedIn: false };
+  try {
+    const page = await pickPage(context);
+    if (!page.url().includes('janitorai.com')) {
+      await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    }
+    await page.evaluate(() => {
+      try { localStorage.clear(); } catch (_) { /* */ }
+      try { sessionStorage.clear(); } catch (_) { /* */ }
+    }).catch(() => {});
+  } catch (_) { /* best effort */ }
+  try { await context.clearCookies(); } catch (_) { /* */ }
+  return { ready: true, loggedIn: false };
+}
+
 /** Throw a clear error if no JanitorAI session is active (à la Glaze's capture). */
 async function requireLogin(context) {
   const page = await pickPage(context);
@@ -344,6 +365,7 @@ module.exports = {
   pickPage,
   getStatus,
   openLogin,
+  logout,
   requireLogin,
   getAvatarUrl,
   downloadAvatar,
