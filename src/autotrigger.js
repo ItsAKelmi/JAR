@@ -42,6 +42,33 @@ async function findInput(page, override, timeout = 12000) {
   return null;
 }
 
+/**
+ * JanitorAI occasionally throws a modal over the chat (persona picker, content
+ * disclaimer, "what's new" popup…). Its backdrop (`_modalOverlay_…`) intercepts
+ * pointer events, so a click on the composer never lands and Playwright times out.
+ * Best-effort dismiss: click an explicit close control inside the dialog, else
+ * press Escape, and wait for the overlay to detach. No-op when nothing is open.
+ * @param {import('playwright').Page} page
+ */
+async function dismissModals(page, { timeout = 4000 } = {}) {
+  const overlay = page.locator('[class*="modalOverlay" i], [class*="ModalOverlay"]').last();
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if ((await overlay.count()) === 0) return;
+    if (!(await overlay.isVisible().catch(() => false))) return;
+    // Prefer an explicit close button inside the dialog over dismissing blindly.
+    const close = page.locator(
+      '[class*="modal" i] button[aria-label*="close" i], '
+      + '[role="dialog"] button[aria-label*="close" i]').first();
+    if ((await close.count()) > 0 && (await close.isVisible().catch(() => false))) {
+      await close.click().catch(() => {});
+    } else {
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    await page.waitForTimeout(300);
+  }
+}
+
 /** Extract a character UUID from a JanitorAI character URL (or a bare UUID). */
 function parseCharacterId(input) {
   const s = String(input || '').trim();
@@ -166,7 +193,16 @@ async function sendMessage(page, text, opts = {}) {
   }
   const { loc, sel } = found;
   await loc.scrollIntoViewIfNeeded().catch(() => {});
-  await loc.click();
+  // A modal overlay (persona picker, disclaimer…) can sit over the composer and
+  // swallow the click; clear it first, then retry the click once more if a new
+  // overlay slipped in between the dismiss and the click.
+  await dismissModals(page);
+  try {
+    await loc.click({ timeout: 8000 });
+  } catch (e) {
+    await dismissModals(page);
+    await loc.click({ timeout: 8000 });
+  }
 
   if (sel.includes('contenteditable')) {
     await loc.evaluate((el) => { el.textContent = ''; });
@@ -276,5 +312,5 @@ async function checkLogin(page) {
 
 module.exports = {
   sendMessage, pickChatPage, parseCharacterId, createChat, deleteChat, fetchCharacter,
-  authedFetch, checkLogin,
+  authedFetch, checkLogin, dismissModals,
 };
