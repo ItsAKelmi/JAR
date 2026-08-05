@@ -89,5 +89,3 @@ JAR can also extract characters from [saucepan.ai](https://saucepan.ai) — no b
 3. **Download** — save the card as PNG or JSON from the *character card* tab, exactly like a JanitorAI character.
 
 Saucepan ships companion definitions as a shuffled list of text fragments padded with decoys (a naive read is scrambled). JAR validates each fragment against its proof hash, drops the decoys, and reassembles the survivors in order — mirroring Saucepan's own client — so the recovered text is exact. Greetings live on a separate endpoint and are reassembled the same way.
-
-License: AGPL-3.0
